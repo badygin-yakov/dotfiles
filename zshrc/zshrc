@@ -1,0 +1,181 @@
+
+# Env
+
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+export EDITOR='vim'
+
+alias df='df -h'
+alias wget='wget --trust-server-names --restrict-file-names=unix --tries=3'
+alias du='du -h'
+alias cp='\cp -i'
+alias mv='mv -i'
+alias rm='rm -i'
+alias scp='\scp -p'
+
+alias rmr='\rm -fR'
+alias cpa='\cp -ai'
+alias rmr='\rm -R'
+alias du1='\du -ch -d 1'
+
+alias pk='cat ~/.ssh/id_rsa.pub'
+alias kh='vim ~/.ssh/known_hosts'
+alias p8='ping 8.8.8.8'
+alias p='ping'
+alias n='nvim'
+alias v='vim'
+alias t='tmux'
+alias py="python"
+alias py2="python2"
+alias py3="python3"
+
+alias jpegprogressive='jpegtran -copy none -optimize -progressive'
+alias stripexif='exiftool -all= '
+
+
+mntfs() {
+    local _DISK=$1
+    local _DEST=$2
+    local _NAME=$3
+    mkdir -p "$_DEST"
+    sudo ntfs-3g -o uid=`id -u` -o gid=0 "$_DISK" "$_DEST" -o volname="$_NAME" -o nobrowse
+}
+
+msshfs() {
+    local _N=$1
+    shift
+    local _D=$1
+    shift
+    mkdir -p "$_D"
+    sshfs $@ "$_D" -o uid=`id -u` -o gid=0 -o volname="$_N" -o no_readahead,noappledouble,nolocalcaches,reconnect
+}
+
+pkcopy() {
+    pk | ssh "$@" 'mkdir -p .ssh && chmod 700 .ssh && cat >> .ssh/authorized_keys && chmod 600 .ssh/authorized_keys'
+}
+
+mdcd() {
+    mkdir -p "$@"
+    cd "$@"
+}
+
+le() {
+    # Convenient wrapper for `less`.
+    # Usage:
+    # le some-file  # equals to `less some-file`
+    # le whois some-ip  # equals to `whois some-ip | less`
+    if [[ -r "$@" ]]; then
+        less "$@"
+    else
+        $@ | less
+    fi
+}
+
+wgen() {
+    # Generates 5 random words
+    # https://blogs.warwick.ac.uk/mikewillis/entry/random_words/
+    WORDFILE="/usr/share/dict/words"
+    NUMWORDS=5
+    tL=`awk 'NF!=0 {++c} END {print c}' $WORDFILE`
+    for i in `seq $NUMWORDS`
+    do
+        rnum=$((`od -vAn -N4 -tu4 < /dev/urandom` % $tL + 1))
+        sed -n "$rnum p" $WORDFILE
+    done
+}
+
+pyctags() {
+    [ -z "$VIRTUAL_ENV" ] && echo "Activate a virtualenv first." && return 1
+    local _gitdir;
+    _gitdir=`git rev-parse --show-toplevel`
+    [ $? -ne 0 ] && echo "Must be a git repo." && return 1
+    echo Generating python ctags for "$_gitdir"
+    (cd "$_gitdir" && ctags -R --fields=+l --languages=python --python-kinds=-iv -f ./.tags $(python -c "import os, sys; print(' '.join('{}'.format(d) for d in sys.path if os.path.isdir(d)))") )
+}
+
+cppctags () {
+    local _gitdir
+    _gitdir=`git rev-parse --show-toplevel`
+    [ $? -ne 0 ] && echo "Must be a git repo." && return 1
+    echo Generating C++ ctags for "$_gitdir"
+    (cd "$_gitdir" && ctags -R --c++-kinds=+p --fields=+iaS --extra=+q -f ./.tags /usr/include . )
+}
+
+if [ "Darwin" = `uname` ]; then
+    alias finder='open .'
+    alias ldd='otool -L'
+
+    activate_conda() {
+        export PATH=/Users/kostya/miniconda3/bin:/anaconda3/bin:$PATH
+    }
+
+    xcode-select --install >/dev/null 2>&1 || true
+fi
+
+
+# https://github.com/popstas/zsh-command-time
+ZSH_COMMAND_TIME_MIN_SECONDS=3
+ZSH_COMMAND_TIME_MSG="Execution time: %s"
+ZSH_COMMAND_TIME_COLOR="cyan"
+
+# Theme
+
+export VIRTUAL_ENV_DISABLE_PROMPT=1
+
+if [[ "$USER" == "root" ]]; then
+    CARETCOLOR="red"
+else
+    CARETCOLOR="green"
+fi
+
+venv_current() {
+    [ -n "$VIRTUAL_ENV" ] && echo "%{$fg_bold[green]%}🐍 (${VIRTUAL_ENV:t})%{$reset_color%} "
+}
+
+PROMPT='
+%{$reset_color%}╭─${ret_status} %{$reset_color%}[%n@%{$fg[$TERM_PROMPT_HOSTNAME_COLOR]%}%m%{$reset_color%} %{$fg[cyan]%}%~%{$reset_color%}] $(venv_current)$(git_prompt_info)⌚ %{$fg_bold[red]%}%*%{$reset_color%}
+╰─%{$fg[$CARETCOLOR]%}\$%{$reset_color%} '
+
+
+# Iterm tab colors
+
+tab_color() {
+    # https://gist.github.com/wadey/1140259
+    echo -ne "\033]6;1;bg;red;brightness;$1\a"
+    echo -ne "\033]6;1;bg;green;brightness;$2\a"
+    echo -ne "\033]6;1;bg;blue;brightness;$3\a"
+}
+tab_reset() {
+    echo -ne "\033]6;1;bg;*;default\a"
+    trap - INT EXIT
+}
+
+TERM_PROMPT_HOSTNAME_COLOR="green"
+TERM_LOCAL_TAB_COLOR=("174" "251" "213")  # light green
+TERM_LOCAL_TAB_COLOR_NVIM=("219" "222" "109")  # light yellow
+
+tab_color_env() {
+    if [ "${#@[@]}" -eq 0 ]; then
+        tab_reset
+    else
+        tab_color $@
+    fi
+}
+
+iterm2_tab_precmd() {
+    tab_color_env $TERM_LOCAL_TAB_COLOR
+}
+
+iterm2_tab_preexec() {
+    if [[ "$1" =~ "^ssh " ]]; then
+    	tab_reset
+    elif [[ "$1" =~ "^(n|nvim|t|tmux)( |$)" ]]; then
+        tab_color_env $TERM_LOCAL_TAB_COLOR_NVIM
+    fi
+}
+
+# https://github.com/wadey/dotfiles/blob/master/zsh/iterm2.zsh
+autoload -U add-zsh-hook
+add-zsh-hook precmd  iterm2_tab_precmd
+add-zsh-hook preexec iterm2_tab_preexec
+
