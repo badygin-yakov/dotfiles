@@ -180,7 +180,7 @@ add-zsh-hook precmd  iterm2_tab_precmd
 add-zsh-hook preexec iterm2_tab_preexec
 
 alias k=kubectl
-#complete -F __start_kubectl k
+complete -F __start_kubectl k
 
 [[ /usr/local/bin/kubectl ]] && source <(kubectl completion zsh)
 
